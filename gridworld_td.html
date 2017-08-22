@@ -76,90 +76,126 @@
   <script type="application/javascript">
 
     // Gridworld
-    var Gridworld = function(){
+    var Gridworld = function()
+    {
       this.Rarr = null; // reward array
       this.T = null; // cell types, 0 = normal, 1 = cliff
+      this.gh = 5;
+  	  this.gw = 10;
+  	  this.gs = this.gh * this.gw; // number of states
+
+  	  this.startS = this.gh - 1;
+      this.goalS = this.gs - 1; 
       this.reset()
     }
     Gridworld.prototype = {
-      reset: function() {
-
-        // hardcoding one gridworld for now
-        this.gh = 10;
-        this.gw = 10;
-        this.gs = this.gh * this.gw; // number of states
+      reset: function() 
+      {
 
         // specify some rewards
         var Rarr = R.zeros(this.gs);
         var T = R.zeros(this.gs);
-        Rarr[55] = 1;
-
-        Rarr[54] = -1;
-        //Rarr[63] = -1;
-        Rarr[64] = -1;
-        Rarr[65] = -1;
-        Rarr[85] = -1;
-        Rarr[86] = -1;
-
-        Rarr[37] = -1;
-        Rarr[33] = -1;
-        //Rarr[77] = -1;
-        Rarr[67] = -1;
-        Rarr[57] = -1;
 
         // make some cliffs
-        for(q=0;q<8;q++) { var off = (q+1)*this.gh+2; T[off] = 1; Rarr[off] = 0; }
-        for(q=0;q<6;q++) { var off = 4*this.gh+q+2; T[off] = 1; Rarr[off] = 0; }
-        T[5*this.gh+2] = 0; Rarr[5*this.gh+2] = 0; // make a hole
-        this.Rarr = Rarr;
+        for(q=1;q<9;q++) { var off = q*this.gh+this.gh-1; T[off] = 1; Rarr[off] = -100; }
+        Rarr[this.gs-1] = 300;    // this works for SARSA too, for the moment.
+
+    	  this.Rarr = Rarr;	
         this.T = T;
+
+        // // hardcoding one gridworld for now
+        // this.gh = 10;
+        // this.gw = 10;
+        // this.gs = this.gh * this.gw; // number of states
+
+        // // specify some rewards
+        // var Rarr = R.zeros(this.gs);
+        // var T = R.zeros(this.gs);
+        // Rarr[55] = 1;
+
+        // Rarr[54] = -1;
+        // //Rarr[63] = -1;
+        // Rarr[64] = -1;
+        // Rarr[65] = -1;
+        // Rarr[85] = -1;
+        // Rarr[86] = -1;
+
+        // Rarr[37] = -1;
+        // Rarr[33] = -1;
+        // //Rarr[77] = -1;
+        // Rarr[67] = -1;
+        // Rarr[57] = -1;
+
+        // // make some cliffs
+        // for(q=0;q<8;q++) { var off = (q+1)*this.gh+2; T[off] = 1; Rarr[off] = 0; }
+        // for(q=0;q<6;q++) { var off = 4*this.gh+q+2; T[off] = 1; Rarr[off] = 0; }
+        // T[5*this.gh+2] = 0; Rarr[5*this.gh+2] = 0; // make a hole
+        // this.Rarr = Rarr;
+        // this.T = T;
       },
-      reward: function(s,a,ns) {
+      reward: function(s,a,ns) 
+      {
         // reward of being in s, taking action a, and ending up in ns
         return this.Rarr[s];
       },
-      nextStateDistribution: function(s,a) {
+      nextStateDistribution: function(s,a) 
+      {
+
         // given (s,a) return distribution over s' (in sparse form)
         if(this.T[s] === 1) {
           // cliff! oh no!
-          // var ns = 0; // reset to state zero (start)
-        } else if(s === 55) {
+          var ns = this.startS; // reset to state zero (start)
+        // } else if(s === 55) {
+        } else if(s === this.goalS) {
+        	// window.alert('This should not have happened!');
           // agent wins! teleport to start
           var ns = this.startState();
-          while(this.T[ns] === 1) {
-            var ns = this.randomState();
-          }
+          // while(this.T[ns] === 1) {			// while the startState is accidentally set to a cliff position
+          //   var ns = this.randomState();
+          // }
         } else {
           // ordinary space
           var nx, ny;
-          var x = this.stox(s);
+          var x = this.stox(s);			// convert from state to coordinate representation
           var y = this.stoy(s);
-          if(a === 0) {nx=x-1; ny=y;}
+          if(a === 0) {nx=x-1; ny=y;}	// nx : next x
           if(a === 1) {nx=x; ny=y-1;}
           if(a === 2) {nx=x; ny=y+1;}
           if(a === 3) {nx=x+1; ny=y;}
           var ns = nx*this.gh+ny;
-          if(this.T[ns] === 1) {
-            // actually never mind, this is a wall. reset the agent
-            var ns = s;
-          }
+          // if(this.T[ns] === 1) 
+          // {
+          //   window.alert('Ouch');
+          //   // actually never mind, this is a wall. reset the agent
+          //   // var ns = s;
+          //   var ns = this.startS;
+          // }
         }
         // gridworld is deterministic, so return only a single next state
         return ns;
       },
-      sampleNextState: function(s,a) {
+      sampleNextState: function(s,a) 
+      {
         // gridworld is deterministic, so this is easy
         var ns = this.nextStateDistribution(s,a);
         var r = this.Rarr[s]; // observe the raw reward of being in s, taking a, and ending up in ns
-        r -= 0.01; // every step takes a bit of negative reward
+        // r -= 1; // every step takes a bit of negative reward
         var out = {'ns':ns, 'r':r};
-        if(s === 55 && ns === 0) {
+        // if(s === 55 && ns === 0) {
+        // if(s === this.goalS && ns === this.startS) 
+        if(this.T[ns] === 1) {ns = this.startS; } // window.alert('Ouch');}
+
+        if(ns === this.startS) 
+        {
+          // if(s === this.goalS) {window.alert('Yaay. Terminating episode... a=' + a + ' r=' + r);}
           // episode is over
+          // window.alert('Ouch');    // CHeck out the v(s) values... something is fishy...
           out.reset_episode = true;
         }
         return out;
       },
-      allowedActions: function(s) {
+      allowedActions: function(s) 
+      {
         var x = this.stox(s);
         var y = this.stoy(s);
         var as = [];
@@ -170,7 +206,7 @@
         return as;
       },
       randomState: function() { return Math.floor(Math.random()*this.gs); },
-      startState: function() { return 0; },
+      startState: function() { return this.startS; },
       getNumStates: function() { return this.gs; },
       getMaxNumActions: function() { return 4; },
 
@@ -201,7 +237,8 @@
       var gs = env.gs; // total number of cells
 
       var w = 600;
-      var h = 600;
+      // var h = 600;
+      var h = 350;
       svg = d3elt.append('svg').attr('width', w).attr('height', h)
         .append('g').attr('transform', 'scale(1)');
 
@@ -397,21 +434,34 @@
     var steps_per_tick = 1;
     var sid = -1;
     var nsteps_history = [];
+    var reward_history = [];
+    var currEps_reward = 0;
     var nsteps_counter = 0;
     var nflot = 1000;
-    var tdlearn = function() {
+    var tdlearn = function() 
+    {
       if(sid === -1) {
-        sid = setInterval(function(){
-          for(var k=0;k<steps_per_tick;k++) {
+        sid = setInterval(function()
+        {
+          for(var k=0;k<steps_per_tick;k++) 
+          {
 
             var a = agent.act(state); // ask agent for an action
             var obs = env.sampleNextState(state, a); // run it through environment dynamics
             agent.learn(obs.r); // allow opportunity for the agent to learn
             state = obs.ns; // evolve environment to next state
             nsteps_counter += 1;
-            if(typeof obs.reset_episode !== 'undefined') {
-              agent.resetEpisode();
+            currEps_reward += obs.r;
+            if(typeof obs.reset_episode !== 'undefined') {      // keep a cumulative reward counter 
+              agent.resetEpisode();                             // and store it here
+              
               // record the reward achieved
+              if(reward_history.length >= nflot) {
+                reward_history = reward_history.slice(1);
+              }
+              reward_history.push(currEps_reward);
+              currEps_reward = 0;
+
               if(nsteps_history.length >= nflot) {
                 nsteps_history = nsteps_history.slice(1);
               }
@@ -443,15 +493,25 @@
       drawGrid();
     }
 
-    function initGraph() {
+    function initGraph() 
+    {
       var container = $("#flotreward");
       var res = getFlotRewards();
-      series = [{
-        data: res,
+      series = [
+      {
+        data: res[0],
         lines: {fill: true}
+      // }, 
+      // {
+      //   data: res[1],
+      //   // type: "scatter",
+      //   // toolTipContent: "<span style='\"'color: {color};'\"'><strong>{name}</strong></span> <br/> <strong>Cost/ container</strong> {y} $<br/> <strong>Ease of Business</strong> {x} "
+      //   // lines: {fill: false}
       }];
-      var plot = $.plot(container, series, {
-        grid: {
+      var plot = $.plot(container, series, 
+      {
+        grid: 
+          {
           borderWidth: 1,
           minBorderMargin: 20,
           labelMargin: 10,
@@ -470,23 +530,33 @@
         },
         yaxis: {
           min: 0,
-          max: 1000
+          max: 200
         }
       });
 
-      setInterval(function(){
-        series[0].data = getFlotRewards();
+      setInterval(function()
+      {
+        series[0].data = getFlotRewards()[0];
+        // series[1].data = getFlotRewards()[1];
         plot.setData(series);
         plot.draw();
       }, 100);
     }
-    function getFlotRewards() {
+
+    function getFlotRewards() 
+    {
       // zip rewards into flot data
-      var res = [];
+      var stepsData = [];
       for(var i=0,n=nsteps_history.length;i<n;i++) {
-        res.push([i, nsteps_history[i]]);
+        stepsData.push([i, nsteps_history[i]]);
       }
-      return res;
+
+      var rewardData = [];
+      for(var i=0,n=nsteps_history.length;i<n;i++) {
+        rewardData.push([i, reward_history[i]]);
+      }
+
+      return [stepsData, rewardData];
     }
 
     var state;
@@ -625,7 +695,7 @@ spec.beta = 0.1; // learning rate for smooth policy update
 - **State space**: GridWorld has 10x10 = 100 distinct states. The start state is the top left cell. The gray cells are walls and cannot be moved to.
 - **Actions**: The agent can choose from up to 4 actions to move around. In this example 
 - **Environment Dynamics**: GridWorld is deterministic, leading to the same new state given each state and action
-- **Rewards**: The agent receives +1 reward when it is in the center square (the one that shows R 1.0), and -1 reward in a few states (R -1.0 is shown for these). The state with +1.0 reward is the goal state and resets the agent back to start.
+- **Rewards**: The agent receives +300 reward when reaches the goal state (the one that shows R 300.0). On reaching the grey cells, it falls down the cliff, gets a reward of -100, and resets to the start state. It receives -1 on all other cells.
 
 In other words, this is a deterministic, finite Markov Decision Process (MDP) and as always the goal is to find an agent policy (shown here by arrows) that maximizes the future discounted reward. My favorite part is letting the agent find the optimal path, then suddenly change the reward of some cell with the slider and watch it struggle to reroute its policy.
 
